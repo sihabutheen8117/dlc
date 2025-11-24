@@ -1,0 +1,106 @@
+# Import necessary libraries
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+import matplotlib.pyplot as plt
+
+# Load MNIST dataset
+(x_train, _), (x_test, _) = keras.datasets.mnist.load_data()
+print(f"Original x_train shape: {x_train.shape}")
+print(f"Original x_test shape: {x_test.shape}")
+
+# Preprocess the data
+x_train = x_train.astype('float32') / 255.0
+x_test = x_test.astype('float32') / 255.0
+
+# Flatten the images
+x_train = x_train.reshape((len(x_train), np.prod(x_train.shape[1:])))
+x_test = x_test.reshape((len(x_test), np.prod(x_test.shape[1:])))
+
+print(f"Processed x_train shape: {x_train.shape}")
+print(f"Processed x_test shape: {x_test.shape}")
+
+# Define dimensions
+input_dim = x_train.shape[1]  # 784
+encoding_dim = 32
+
+# Build the Autoencoder architecture
+input_img = keras.Input(shape=(input_dim,))
+
+# Encoder
+encoded = layers.Dense(128, activation='relu')(input_img)
+encoded = layers.Dense(64, activation='relu')(encoded)
+encoded = layers.Dense(encoding_dim, activation='relu')(encoded)  # Bottleneck layer
+
+# Decoder
+decoded = layers.Dense(64, activation='relu')(encoded)
+decoded = layers.Dense(128, activation='relu')(decoded)
+decoded = layers.Dense(input_dim, activation='sigmoid')(decoded)
+
+# Create autoencoder and encoder models
+autoencoder = keras.Model(input_img, decoded)
+encoder = keras.Model(input_img, encoded)
+
+# Display model summaries
+print("\nAutoencoder Model Summary:")
+autoencoder.summary()
+print("\nEncoder Model Summary:")
+encoder.summary()
+
+# Compile the autoencoder
+autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+
+# Train the autoencoder
+history = autoencoder.fit(x_train, x_train,
+                          epochs=50,
+                          batch_size=256,
+                          shuffle=True,
+                          validation_data=(x_test, x_test),
+                          verbose=1)
+
+# Plot training history
+plt.figure(figsize=(10, 5))
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Autoencoder Model Loss Over Epochs')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# Encode and decode test images
+encoded_imgs = encoder.predict(x_test)
+decoded_imgs = autoencoder.predict(x_test)
+
+# Visualize original vs reconstructed images
+n = 10
+plt.figure(figsize=(20, 4))
+for i in range(n):
+    # Display original images
+    ax = plt.subplot(2, n, i + 1)
+    plt.imshow(x_test[i].reshape(28, 28))
+    plt.gray()
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    ax.set_title("Original")
+    
+    # Display reconstructed images
+    ax = plt.subplot(2, n, i + 1 + n)
+    plt.imshow(decoded_imgs[i].reshape(28, 28))
+    plt.gray()
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    ax.set_title("Reconstructed")
+
+plt.suptitle('Original vs. Reconstructed MNIST Digits')
+plt.show()
+
+# Evaluate the model
+test_loss = autoencoder.evaluate(x_test, x_test, verbose=0)
+print(f"\nFinal Test Reconstruction Loss (Binary Cross-entropy): {test_loss:.4f}")
+
+# Calculate Mean Squared Error
+mse = np.mean(np.power(x_test - decoded_imgs, 2))
+print(f"Mean Squared Error (MSE) on Test Set: {mse:.4f}")
